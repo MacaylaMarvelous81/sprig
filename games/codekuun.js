@@ -677,79 +677,78 @@ const textObject = (() => {
   };
 })();
 
-class GameObject {
-  static sprites = {};
-  static solid = false;
+const gameObject = (() => {
+  const objects = [];
+  
+  return {
+    constructor: (x, y, sprite) => {
+      addSprite(0, 0, sprite);
+      let sprigSprite = getTile(0, 0)[0];
+      sprigSprite.x = x;
+      sprigSprite.y = y;
+  
+      const object = {
+        components: [],
+        getX: () => sprigSprite.x,
+        setX: (val) => sprigSprite.x = val,
+        getY: () => sprigSprite.y,
+        setY: (val) => sprigSprite.y = val,
+        getSprite: () => sprigSprite.type,
+        setSprite: (val) => {
+          if (sprigSprite.type === val) return;
+  
+          const currentX = sprigSprite.x;
+          const currentY = sprigSprite.y;
+  
+          sprigSprite.remove();
+  
+          addSprite(0, 0, val);
+          sprigSprite = getTile(0, 0)[0];
+          sprigSprite.x = currentX;
+          sprigSprite.y = currentY;
+        },
+        remove: () => {
+          // Maybe keep track if removed, and prevent operations on object if so?
+          this.#sprigSprite.remove();
+      
+          GameObject.#objects.splice(GameObject.#objects.indexOf(this), 1);
+        }
+      };
+  
+      objects.push(object);
+      
+      return object;
+    },
+    getObjectsWithComponent: (id) => objects.filter((obj) => obj.components.filter(component => component.id === id).length > 0),
+    step() {
+      objects.forEach((obj) => {
+        const overlaps = objects.filter(otherObj => otherObj !== obj && otherObj.x === obj.x && otherObj.y === obj.y);
+        
+        obj.components.forEach((component) => {
+          component.onStep(obj);
 
-  static #solidSprites = [ bitmaps.barrier.key ];
-  static #objects = [];
+          overlaps.forEach((otherObj) => component.onOverlap(obj, otherObj));
+        });
+      });
+    }
+  };
+})();
 
-  get x() { return this.#sprigSprite.x; }
-  set x(val) { this.#sprigSprite.x = val; }
-  get y() { return this.#sprigSprite.y; }
-  set y(val) { this.#sprigSprite.y = val; }
-  get sprite() { return this.#sprigSprite.type; }
-  set sprite(val) {
-    if (this.sprite === val) return;
-    
-    const x = this.x;
-    const y = this.y;
+const agentComponent = (() => {
+  return {
+    id: 'agent',
+    onStep: (obj) => {},
+    onOverlap: (obj, otherObj) => {}
+  };
+})();
 
-    this.#sprigSprite.remove();
-    
-    addSprite(0, 0, val);
-    this.#sprigSprite = getTile(0, 0)[0];
-    this.x = x;
-    this.y = y;
+const goalComponent = (() => {
+  return {
+    id: 'goal',
+    onStep: (obj) => {},
+    onOverlap: (obj, otherObj) => {}
   }
-
-  #sprigSprite;
-
-  constructor(x, y, initialSprite) {
-    // 0, 0 is the 'magic' tile where objects are initialized. Don't put anything
-    // here!
-    addSprite(0, 0, initialSprite);
-    this.#sprigSprite = getTile(0, 0)[0];
-    this.x = x;
-    this.y = y;
-
-    GameObject.#objects.push(this);
-  }
-
-  static register(obj) {
-    if (obj.solid) {
-      for (const spr in obj.sprites) {
-        GameObject.#solidSprites.push(obj.sprites[spr]);
-      }
-      setSolids(this.#solidSprites);
-    };
-  }
-
-  static getObjectsOfType(type) {
-    return GameObject.#objects.filter((obj) => obj instanceof type);
-  }
-
-  static step() {
-    GameObject.#objects.forEach((obj) => obj.onStep());
-  }
-
-  onStep() {
-    GameObject.#objects.forEach((obj) => {
-      if (obj !== this && obj.x === this.x && obj.y === this.y) {
-        this.onOverlap(obj);
-      }
-    });
-  }
-
-  onOverlap(other) {}
-
-  remove() {
-    // Maybe keep track if removed, and prevent operations on object if so?
-    this.#sprigSprite.remove();
-
-    GameObject.#objects.splice(GameObject.#objects.indexOf(this), 1);
-  }
-}
+})();
 
 class Controllable extends GameObject {
   static sprites = {
