@@ -627,63 +627,55 @@ const inputs = {
   valueDown: 's'
 };
 
-class Text {
-  static #instances = [];
-
-  #text;
-  #x;
-  #y;
-  #color;
-
-  get text() { return this.#text; }
-  set text(val) {
-    this.#text = val;
-    Text.#updateText();
-  }
-  get x() { return this.#x; }
-  set x(val) {
-    this.#x = val;
-    Text.#updateText();
-  }
-  get y() { return this.#y; }
-  set y(val) {
-    this.#y = val;
-    Text.#updateText();
-  }
-  get color() { return this.#color; }
-  set color(val) {
-    this.#color = val;
-    Text.#updateText();
-  }
-
-  constructor(text, x, y, color) {
-    this.#text = text;
-    this.#x = x;
-    this.#y = y;
-    this.#color = color;
-
-    Text.#instances.push(this);
-    Text.#updateText();
-  }
-
-  remove() {
-    Text.#instances.splice(Text.#instances.indexOf(this), 1);
-
-    Text.#updateText();
-  }
-
-  static #updateText() {
+const textObject = (() => {
+  const instances = [];
+  
+  const updateText = () => {
     clearText();
     
-    Text.#instances.forEach((text) => {
-      addText(text.text, {
-        x: text.x,
-        y: text.y,
-        color: text.color
+    instances.forEach((text) => {
+      addText(text.getText(), {
+        x: text.getX(),
+        y: text.getY(),
+        color: text.getColor()
       });
     });
-  }
-}
+  };
+
+  return (text, x, y, color) => {
+    const object = {
+      getText: () => text,
+      setText: (val) => {
+        text = val;
+        updateText();
+      },
+      getX: () => x,
+      setX: (val) => {
+        x = val;
+        updateText();
+      },
+      getY: () => y,
+      setY: (val) => {
+        y = val;
+        updateText();
+      },
+      getColor: () => color,
+      setColor: (val) => {
+        color = val;
+        updateText();
+      },
+      remove: () => {
+        instances.splice(instances.indexOf(object), 1);
+        updateText();
+      }
+    };
+
+    instances.push(object);
+    updateText();
+    
+    return object;
+  };
+})();
 
 class GameObject {
   static sprites = {};
@@ -940,9 +932,9 @@ class Command extends GameObject {
         // vertically; thus, the text is in a grid aligned to that of the map
         // with double the size. Thus it is necessary for the map size to be
         // 10x8 -- at least when this technique is in use.
-        this.#valueText = new Text(this.value.toString(), (this.x * 2) + 1, (this.y * 2) + 1, color`6`);
+        this.#valueText = textObject(this.value.toString(), (this.x * 2) + 1, (this.y * 2) + 1, color`6`);
       } else {
-        this.#valueText.text = this.value.toString();
+        this.#valueText.setText(this.value.toString());
       }
     } else {
       if (this.#valueText) {
@@ -989,13 +981,13 @@ const levels = [
       ephemeralObjects.push(new Scrap(6, 2));
 
       ephemeralObjects.push(new GameObject(0, 3, bitmaps.commandMove.key));
-      ephemeralText.push(new Text('to move forward', 2, 7, color`0`));
+      ephemeralText.push(textObject('to move forward', 2, 7, color`0`));
       ephemeralObjects.push(new GameObject(0, 4, bitmaps.commandErase.key));
-      ephemeralText.push(new Text('remove a command', 2, 9, color`0`));
+      ephemeralText.push(textObject('remove a command', 2, 9, color`0`));
       ephemeralObjects.push(new GameObject(0, 5, bitmaps.commandRun.key));
-      ephemeralText.push(new Text('to run program', 2, 11, color`0`));
+      ephemeralText.push(textObject('to run program', 2, 11, color`0`));
       
-      ephemeralText.push(new Text('A/D-Move  K-Select', 1, 13, color`0`));
+      ephemeralText.push(textObject('A/D-Move  K-Select', 1, 13, color`0`));
     },
     commands: [ Command.commandTypes.move ],
     commandSlots: 3,
@@ -1014,7 +1006,7 @@ const levels = [
       ephemeralObjects.push(new Controllable(3, 4, 'up'));
       ephemeralObjects.push(new Scrap(5, 4));
 
-      ephemeralText.push(new Text('only the gray floor\ncan be traversed', 1, 10, color`0`));
+      ephemeralText.push(textObject('only the gray floor\ncan be traversed', 1, 10, color`0`));
     },
     commands: [ Command.commandTypes.move, Command.commandTypes.turnRight ],
     commandSlots: 6,
@@ -1033,11 +1025,11 @@ const levels = [
       ephemeralObjects.push(new Controllable(2, 1, 'right'));
       ephemeralObjects.push(new Scrap(7, 1));
 
-      ephemeralText.push(new Text('commands between\nand  will loop', 1, 7, color`0`));
+      ephemeralText.push(textObject('commands between\nand  will loop', 1, 7, color`0`));
       ephemeralObjects.push(new GameObject(9, 3, bitmaps.commandLoop.key));
       ephemeralObjects.push(new GameObject(2, 4, bitmaps.commandLoopEnd.key));
 
-      ephemeralText.push(new Text('W/S-set iterations', 1, 12, color`0`));
+      ephemeralText.push(textObject('W/S-set iterations', 1, 12, color`0`));
     },
     commands: [ Command.commandTypes.move, Command.commandTypes.loop, Command.commandTypes.loopEnd ],
     commandSlots: 3,
@@ -1074,7 +1066,7 @@ const levels = [
       ephemeralObjects.push(new GameObject(2, 2, bitmaps.scrapCode.key));
       ephemeralObjects.push(new GameObject(3, 3, bitmaps.scrapCode.key));
       
-      ephemeralText.push(new Text('Nice job! Now Heidi\nhas a nest full of\nscraps!', 1, 11, color`8`));
+      ephemeralText.push(textObject('Nice job! Now Heidi\nhas a nest full of\nscraps!', 1, 11, color`8`));
 
       playTune(tunes.victory);
     },
