@@ -709,9 +709,9 @@ const gameObject = (() => {
         },
         remove: () => {
           // Maybe keep track if removed, and prevent operations on object if so?
-          this.#sprigSprite.remove();
+          sprigSprite.remove();
       
-          GameObject.#objects.splice(GameObject.#objects.indexOf(this), 1);
+          objects.splice(objects.indexOf(object), 1);
         }
       };
   
@@ -725,249 +725,166 @@ const gameObject = (() => {
         const overlaps = objects.filter(otherObj => otherObj !== obj && otherObj.x === obj.x && otherObj.y === obj.y);
         
         obj.components.forEach((component) => {
-          component.onStep(obj);
+          component.onStep();
 
-          overlaps.forEach((otherObj) => component.onOverlap(obj, otherObj));
+          overlaps.forEach((otherObj) => component.onOverlap(otherObj));
         });
       });
     }
   };
 })();
 
-const agentComponent = (() => {
+const agentComponent = ((obj, direction) => {
   return {
     id: 'agent',
-    onStep: (obj) => {},
-    onOverlap: (obj, otherObj) => {}
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    moveForward: () => {
+      const y = obj.getY();
+      if (direction === 'up' && y > 1) {
+        obj.setY(y - 1);
+      } else if (direction === 'down' && y < height() - 2) {
+        obj.setY(y + 1);
+      } else if (direction === 'left') {
+        obj.setX(obj.getX() - 1);
+      } else if (direction === 'right') {
+        obj.setX(obj.getX() + 1);
+      }
+    },
+    turn: (newDirection) => {
+      // right turns in the clockwise direction, left turns counterclockwise
+      switch (direction) {
+        case 'up':
+          if (newDirection === 'right') direction = 'right';
+          if (newDirection === 'left') direction = 'left';
+          break;
+        case 'down':
+          if (newDirection === 'right') direction = 'left';
+          if (newDirection === 'left') direction = 'right';
+          break;
+        case 'left':
+          if (newDirection === 'right') direction = 'up';
+          if (newDirection === 'left') direction = 'down';
+          break;
+        case 'right':
+          if (newDirection === 'right') direction = 'down';
+          if (newDirection === 'left') direction = 'up';
+          break;
+    }
   };
 })();
 
-const goalComponent = (() => {
+const goalCollectorComponent((obj) => {
+  return {
+    id: 'goalCollector',
+    onStep: () => {},
+    onOverlap: (otherObj) => {}
+  };
+})();
+
+const goalComponent = ((obj) => {
   return {
     id: 'goal',
-    onStep: (obj) => {},
-    onOverlap: (obj, otherObj) => {}
+    onStep: () => {},
+    onOverlap: (otherObj) => {
+      if (otherObj.components.filter(component => component.id === 'goalCollector').length <= 0) return;
+      
+      playTune(tunes.collect);
+      obj.remove();
+    }
+  };
+})();
+
+const commandComponent = ((obj) => {
+  let selected = false;
+  
+  return {
+    id: 'command',
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    getSelected: () => selected,
+    setSelected: (val) => {
+      selected = val;
+      // TODO: update sprite when selected
+    }
+  };
+})();
+
+const emptyCommandComponent = ((obj) => {
+  return {
+    id: 'emptyCommand',
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    execute: () => {}
+  };
+})();
+
+const moveCommandComponent = ((obj) => {
+  return {
+    id: 'moveCommand',
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    execute: () => {
+      gameObject.getObjectsWithComponent('agent').forEach((otherObj) => {
+        otherObj.components.filter(component => component.id === 'agent').forEach(component => component.moveForward());
+      });
+    }
+  };
+})();
+
+const eraseCommandComponent = ((obj) => {
+  return {
+    id: 'eraseCommand',
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    execute: () => {}
+  };
+})();
+
+const runCommandComponent = ((obj) => {
+  return {
+    id: 'runCommand',
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    execute: () => {}
+  };
+})();
+
+const turnRightCommandComponent = ((obj) => {
+  return {
+    id: 'turnRightCommand',
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    execute: () => {
+      gameObject.getObjectsWithComponent('agent').forEach((otherObj) => {
+        otherObj.components.filter(component => component.id === 'agent').forEach(component => component.turn('right'));
+      });
+    }
+  };
+})();
+
+const loopCommandComponent = ((obj) => {
+  // TODO: value text, incr/decr value
+  let value = 0;
+  
+  return {
+    id: 'loopCommand',
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    execute: () => {},
+    getValue: () => value,
+    setValue: (val) => value = val
   }
 })();
 
-class Controllable extends GameObject {
-  static sprites = {
-    up: bitmaps.controllableUp.key,
-    down: bitmaps.controllableDown.key,
-    left: bitmaps.controllableLeft.key,
-    right: bitmaps.controllableRight.key
+const loopEndCommandComponent = ((obj) => {
+  return {
+    id: 'loopEndCommand',
+    onStep: () => {},
+    onOverlap: (otherObj) => {},
+    execute: () => {}
   };
-  static solid = true;
-  static {
-    GameObject.register(Controllable);
-  }
-
-  #direction;
-  get direction() { return this.#direction; }
-  set direction(val) {
-    this.#direction = val;
-    this.sprite = Controllable.sprites[val];
-  }
-  
-  constructor(x, y, dir) {
-    let sprite = Controllable.sprites[dir];
-    
-    super(x, y, sprite);
-
-    this.#direction = dir;
-  }
-
-  move(direction) {
-    if (direction === 'up' && this.y > 1) {
-      this.y -= 1;
-    } else if (direction === 'down' && this.y < height() - 2) {
-      this.y += 1;
-    } else if (direction === 'left') {
-      this.x -= 1;
-    } else if (direction === 'right') {
-      this.x += 1;
-    }
-  }
-
-  turn(direction) {
-    // right turns in the clockwise direction, left turns counterclockwise
-    switch (this.direction) {
-      case 'up':
-        if (direction === 'right') this.direction = 'right';
-        if (direction === 'left') this.direction = 'left';
-        break;
-      case 'down':
-        if (direction === 'right') this.direction = 'left';
-        if (direction === 'left') this.direction = 'right';
-        break;
-      case 'left':
-        if (direction === 'right') this.direction = 'up';
-        if (direction === 'left') this.direction = 'down';
-        break;
-      case 'right':
-        if (direction === 'right') this.direction = 'down';
-        if (direction === 'left') this.direction = 'up';
-        break;
-    }
-  }
-}
-
-class Command extends GameObject {
-  static sprites = {
-    empty: bitmaps.commandEmpty.key,
-    move: bitmaps.commandMove.key,
-    moveSelected: bitmaps.commandMoveSelected.key,
-    erase: bitmaps.commandErase.key,
-    eraseSelected: bitmaps.commandEraseSelected.key,
-    run: bitmaps.commandRun.key,
-    runSelected: bitmaps.commandRunSelected.key,
-    turnRight: bitmaps.commandTurnRight.key,
-    turnRightSelected: bitmaps.commandTurnRightSelected.key,
-    loop: bitmaps.commandLoop.key,
-    loopSelected: bitmaps.commandLoopSelected.key,
-    loopEnd: bitmaps.commandLoopEnd.key,
-    loopEndSelected: bitmaps.commandLoopEndSelected.key
-  };
-  static solid = false;
-  static {
-    GameObject.register(Command);
-  }
-
-  static commandTypes = {
-    empty: {
-      default: Command.sprites.empty,
-      selected: null
-    },
-    move: {
-      default: Command.sprites.move,
-      selected: Command.sprites.moveSelected
-    },
-    erase: {
-      default: Command.sprites.erase,
-      selected: Command.sprites.eraseSelected
-    },
-    run: {
-      default: Command.sprites.run,
-      selected: Command.sprites.runSelected
-    },
-    turnRight: {
-      default: Command.sprites.turnRight,
-      selected: Command.sprites.turnRightSelected
-    },
-    loop: {
-      default: Command.sprites.loop,
-      selected: Command.sprites.loopSelected
-    },
-    loopEnd: {
-      default: Command.sprites.loopEnd,
-      selected: Command.sprites.loopEndSelected
-    }
-  };
-
-  value = 0;
-
-  #type = '';
-  #selected = false;
-  #valueText;
-
-  get type() { return this.#type; }
-  set type(val) {
-    this.#type = val;
-    this.#updateSprite();
-  }
-  get selected() { return this.#selected; }
-  set selected(val) {
-    this.#selected = val;
-    this.#updateSprite();
-  }
-
-  constructor(x, y, type, selected) {
-    super(x, y, selected ? type.selected : type.default);
-
-    this.#type = type;
-    this.#selected = selected;
-
-    this.#updateSprite();
-  }
-
-  execute() {
-    // Maybe define behavior in command type object?
-    switch (this.#type) {
-      case Command.commandTypes.move:
-        GameObject.getObjectsOfType(Controllable).forEach((controllable) => controllable.move(controllable.direction));
-        break;
-      case Command.commandTypes.turnRight:
-        GameObject.getObjectsOfType(Controllable).forEach((controllable) => controllable.turn('right'));
-        break;
-      default:
-        break;
-    }
-  }
-
-  incrementValue() {
-    if (this.#type !== Command.commandTypes.loop) return false;
-    if (this.value >= 9) return false;
-
-    this.value++;
-    this.#updateSprite();
-    return true;
-  }
-
-  decrementValue() {
-    if (this.#type !== Command.commandTypes.loop) return false;
-    if (this.value <= 0) return false;
-
-    this.value--;
-    this.#updateSprite();
-    return true;
-  }
-
-  #updateSprite() {
-    this.sprite = this.#selected ? this.#type.selected : this.#type.default;
-
-    if (this.#type === Command.commandTypes.loop) {
-      if (!this.#valueText) {
-        // In a 10x8 map, a tile can fit 2 characters of text horizontally and
-        // vertically; thus, the text is in a grid aligned to that of the map
-        // with double the size. Thus it is necessary for the map size to be
-        // 10x8 -- at least when this technique is in use.
-        this.#valueText = textObject(this.value.toString(), (this.x * 2) + 1, (this.y * 2) + 1, color`6`);
-      } else {
-        this.#valueText.setText(this.value.toString());
-      }
-    } else {
-      if (this.#valueText) {
-        this.#valueText.remove();
-        this.#valueText = null;
-      }
-    }
-  }
-}
-
-class Scrap extends GameObject {
-  static sprites = {
-    code: bitmaps.scrapCode.key
-  };
-  static solid = false;
-  static {
-    GameObject.register(Scrap);
-  }
-
-  constructor(x, y) {
-    /*
-    const sprite = Math.floor(Math.random() * 2);
-    super(x, y, sprite === 1 ? Scrap.sprites.code
-    */
-
-    super(x, y, Scrap.sprites.code);
-  }
-
-  onOverlap(other) {
-    playTune(tunes.collect);
-    
-    if (other instanceof Controllable) this.remove();
-  }
-}
+})();
 
 // Map size is 10x8 so the map fits the 160x128 screen. In keeping the map size
 // consistent across all levels, the 'hud' elements such as the commands and the
@@ -976,14 +893,19 @@ class Scrap extends GameObject {
 const levels = [
   {
     onLoad(ephemeralObjects, ephemeralText) {
-      ephemeralObjects.push(new Controllable(3, 2, 'right'));
-      ephemeralObjects.push(new Scrap(6, 2));
+      const controllable = gameObject.constructor(3, 2, bitmaps.controllableRight.key);
+      controllable.components.push(agentComponent());
+      controllable.components.push(goalCollectorComponent());
+      ephemeralObjects.push(controllable);
+      const scrap = gameObject.constructor(6, 2, bitmaps.scrapCode.key);
+      scrap.components.push(goalComponent());
+      ephemeralObjects.push(scrap);
 
-      ephemeralObjects.push(new GameObject(0, 3, bitmaps.commandMove.key));
+      ephemeralObjects.push(gameObject.constructor(0, 3, bitmaps.commandMove.key));
       ephemeralText.push(textObject('to move forward', 2, 7, color`0`));
-      ephemeralObjects.push(new GameObject(0, 4, bitmaps.commandErase.key));
+      ephemeralObjects.push(gameObject.constructor(0, 4, bitmaps.commandErase.key));
       ephemeralText.push(textObject('remove a command', 2, 9, color`0`));
-      ephemeralObjects.push(new GameObject(0, 5, bitmaps.commandRun.key));
+      ephemeralObjects.push(gameObject.constructor(0, 5, bitmaps.commandRun.key));
       ephemeralText.push(textObject('to run program', 2, 11, color`0`));
       
       ephemeralText.push(textObject('A/D-Move  K-Select', 1, 13, color`0`));
@@ -1002,8 +924,13 @@ const levels = [
   },
   {
     onLoad(ephemeralObjects, ephemeralText) {
-      ephemeralObjects.push(new Controllable(3, 4, 'up'));
-      ephemeralObjects.push(new Scrap(5, 4));
+      const controllable = gameObject.constructor(3, 4, bitmaps.controllableUp.key);
+      controllable.components.push(agentComponent());
+      controllable.components.push(goalCollectorComponent());
+      ephemeralObjects.push(controllable);
+      const scrap = gameObject.constructor(5, 4, bitmaps.scrapCode.key);
+      scrap.components.push(goalComponent());
+      ephemeralObjects.push(scrap);
 
       ephemeralText.push(textObject('only the gray floor\ncan be traversed', 1, 10, color`0`));
     },
@@ -1021,12 +948,17 @@ const levels = [
   },
   {
     onLoad(ephemeralObjects, ephemeralText) {
-      ephemeralObjects.push(new Controllable(2, 1, 'right'));
-      ephemeralObjects.push(new Scrap(7, 1));
+      const controllable = gameObject.constructor(2, 1, bitmaps.controllableRight.key);
+      controllable.components.push(agentComponent());
+      controllable.components.push(goalCollectorComponent());
+      ephemeralObjects.push(controllable);
+      const scrap = gameObject.constructor(7, 1, bitmaps.scrapCode.key);
+      scrap.components.push(goalComponent());
+      ephemeralObjects.push(scrap);
 
       ephemeralText.push(textObject('commands between\nand  will loop', 1, 7, color`0`));
-      ephemeralObjects.push(new GameObject(9, 3, bitmaps.commandLoop.key));
-      ephemeralObjects.push(new GameObject(2, 4, bitmaps.commandLoopEnd.key));
+      ephemeralObjects.push(gameObject.constructor(9, 3, bitmaps.commandLoop.key));
+      ephemeralObjects.push(gameObject.constructor(2, 4, bitmaps.commandLoopEnd.key));
 
       ephemeralText.push(textObject('W/S-set iterations', 1, 12, color`0`));
     },
@@ -1044,9 +976,15 @@ const levels = [
   },
   {
     onLoad(ephemeralObjects, ephemeralText) {
-      ephemeralObjects.push(new Controllable(3, 6, 'up'));
-      ephemeralObjects.push(new Scrap(3, 2));
-      ephemeralObjects.push(new Scrap(7, 2));
+      const controllable = gameObject.constructor(3, 6, bitmaps.controllableUp.key);
+      controllable.components.push(agentComponent());
+      controllable.components.push(goalCollectorComponent());
+      ephemeralObjects.push(controllable);
+      const scrap = gameObject.constructor(3, 2, bitmaps.scrapCode.key);
+      scrap.components.push(goalComponent());
+      ephemeralObjects.push(scrap);
+      const scrap2 = gameObject.constructor(7, 2, bitmaps.scrapCode.key);
+      scrap.components.push(goalComponent());
     },
     commands: [ Command.commandTypes.move, Command.commandTypes.turnRight, Command.commandTypes.loop, Command.commandTypes.loopEnd],
     commandSlots: 7,
@@ -1062,8 +1000,8 @@ const levels = [
   },
   {
     onLoad(ephemeralObjects, ephemeralText) {
-      ephemeralObjects.push(new GameObject(2, 2, bitmaps.scrapCode.key));
-      ephemeralObjects.push(new GameObject(3, 3, bitmaps.scrapCode.key));
+      ephemeralObjects.push(gameObject.constructor(2, 2, bitmaps.scrapCode.key));
+      ephemeralObjects.push(gameObject.constructor(3, 3, bitmaps.scrapCode.key));
       
       ephemeralText.push(textObject('Nice job! Now Heidi\nhas a nest full of\nscraps!', 1, 11, color`8`));
 
@@ -1108,7 +1046,10 @@ const game = {
     this.currentSlot = 0;
     this.commandSlots = [];
     for (let i = 0; i < levels[level].commandSlots; i++) {
-      this.commandSlots.push(new Command(i + 1, 0, Command.commandTypes.empty, false));
+      const command = gameObject.constructor(i + 1, 0, bitmaps.commandEmpty.key);
+      command.components.push(commandComponent());
+      command.components.push(emptyCommandComponent());
+      this.commandSlots.push(command);
     }
 
     this.selected = 0;
